@@ -12,13 +12,29 @@ import Loader from "react-loader-spinner"
 import SwitchSelector from "react-switch-selector"
 class Login extends React.Component {
 
-  constructor(props){
-    super(props)
-      this.web3 = new Web3(Web3.givenProvider || "http://localhost:7545")
-      this.contract = contract(contractMeta)
-      this.contract.setProvider(this.web3.currentProvider)
-      this.state = { account : "", ipfs : "", username: "", type : "", choice : "1", }
+  constructor(props) {
+    super(props);
+  
+    // Ensure Web3 uses the Metamask provider
+    if (window.ethereum) {
+      this.web3 = new Web3(window.ethereum);
+      window.ethereum.request({ method: 'eth_requestAccounts' }); // Request account access
+    } else {
+      this.web3 = new Web3(Web3.givenProvider || "http://localhost:7545");
+      console.warn('Metamask not detected; using local Ganache network.');
     }
+  
+    this.contract = contract(contractMeta);
+    this.contract.setProvider(this.web3.currentProvider);
+    this.state = {
+      account: "",
+      ipfs: "",
+      username: "",
+      type: "",
+      choice: "1",
+    };
+  }
+  
 
   componentDidMount(){
     this.loadBlockchain().then(() => console.log("Loaded Blockchain"))
@@ -26,10 +42,21 @@ class Login extends React.Component {
     this.loginUser().then(() => console.log("Login Successful"))
   }
 
-  async loadBlockchain(){
-    const accounts = await this.web3.eth.getAccounts()
-    this.setState({account:accounts[0]})
+  async loadBlockchain() {
+    if (window.ethereum) {
+      try {
+        // Request access to Metamask accounts
+        const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
+        this.setState({ account: accounts[0] });
+        console.log('Connected account:', accounts[0]);
+      } catch (error) {
+        console.error('User denied account access:', error);
+      }
+    } else {
+      console.error('Metamask not detected! Please install Metamask.');
+    }
   }
+  
 
   async loadIPFS(){
     const conn = create({ host: 'ipfs.infura.io', port: '5001', protocol: 'https' })
@@ -43,13 +70,26 @@ class Login extends React.Component {
       this.setState({type: val})
   }
 
-  registerUser = async () =>{
-    const contractInstance = await this.contract.deployed()
-    if (this.state.choice === "1")
-      await contractInstance.addNewArtist(this.state.username,{from:this.state.account}).then(() => this.loginUser())
-    if (this.state.choice === "2")
-      await contractInstance.addNewAudience(this.state.username,{from:this.state.account}).then(() => this.loginUser())
-  }
+  registerUser = async () => {
+    if (!this.state.account) {
+      alert("Please connect to Metamask first.");
+      return;
+    }
+  
+    const contractInstance = await this.contract.deployed();
+  
+    try {
+      if (this.state.choice === "1") {
+        await contractInstance.addNewArtist(this.state.username, { from: this.state.account });
+      } else if (this.state.choice === "2") {
+        await contractInstance.addNewAudience(this.state.username, { from: this.state.account });
+      }
+      await this.loginUser();
+    } catch (error) {
+      console.error('Transaction failed:', error);
+    }
+  };
+  
 
   render(){
 

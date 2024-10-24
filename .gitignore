@@ -11,6 +11,7 @@ App/coverage
 
 # production
 App/build
+.env
 
 # misc
 App/.DS_Store
